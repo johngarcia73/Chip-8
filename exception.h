@@ -35,3 +35,10 @@ public:
     explicit ScreenError(const std::string& message)
         : RangeError("Screen Error: " + message) { }
 };
+
+
+class NotFoundError : public std::runtime_error {
+public:
+    explicit NotFoundError(const std::string& message)
+        : std::runtime_error(message) { }
+};
