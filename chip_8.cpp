@@ -1,7 +1,11 @@
-#include"chip_8.h"
-#include"exception.h"
-#include<cstring>
-#include<fstream>
+#include "chip_8.h"
+#include "exception.h"
+#include <cstring>
+#include <fstream>
+#include <sstream>
+#include <chrono>
+#include <thread>
+#include <iostream>
 
 // Helper function to build error messages
 std::string buildErrorMessage(const std::string& type, size_t value, size_t bound, const std::string& unit = "bytes") {
@@ -120,12 +124,6 @@ void Chip_8::setScreenCell(size_t row, size_t col, bool value) {
 }
 
 
-#include <sstream>
-#include <fstream>
-#include <cstring>
-#include <chrono>
-#include <thread>
-#include <iostream>
 
 void Chip_8::loadROM(const std::string& filename) {
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
@@ -302,7 +300,10 @@ void Chip_8::executeOpcode(uint16_t opcode) {
         case 0xF:
             switch (KK) {
                 case 0x07: registers[X] = delayTimer; break;
-                case 0x0A: waitForKey(registers[X]); break;
+                case 0x0A:
+                    waitForKey(registers[X]);
+                    programCounter -=2;
+                    break;
                 case 0x15: delayTimer = registers[X]; break;
                 case 0x18: soundTimer = registers[X]; break;
                 case 0x1E: indexRegister += registers[X]; break;
@@ -322,6 +323,14 @@ void Chip_8::executeOpcode(uint16_t opcode) {
         default:
             throw std::runtime_error("Unknown opcode nibble");
     }
+}
+
+void Chip_8::storeBCD(uint8_t value) {
+    uint8_t* bcdPtr = &memory[indexRegister];
+    
+    bcdPtr[0] = value / 100;
+    bcdPtr[1] = (value / 10) % 10;
+    bcdPtr[2] = value % 10;
 }
 
 void Chip_8::drawSprite(uint8_t Vx, uint8_t Vy, uint8_t N) {
@@ -345,6 +354,21 @@ void Chip_8::drawSprite(uint8_t Vx, uint8_t Vy, uint8_t N) {
     }
 }
 
+void Chip_8::drawScreen() {
+    static int frame = 0;
+    if (++frame % 10 == 0) { // reduces speed
+        system("clear"); // Linux/Mac
+        for (int row = 0; row < SCREEN_HEIGHT; ++row) {
+            for (int col = 0; col < SCREEN_WIDTH; ++col) {
+                size_t pos = row * SCREEN_WIDTH + col;
+                std::cout << (screen[pos] ? '#' : ' ');
+            }
+            std::cout << '\n';
+        }
+        std::cout << std::flush;
+    }
+}
+
 void Chip_8::updateTimers() {
     if (delayTimer > 0) delayTimer--;
     if (soundTimer > 0) soundTimer--;
@@ -355,5 +379,24 @@ void Chip_8::updateSound() {
         // beep (depends on platform)
         // For now just print a message or use a simple system beep
         std::cout << '\a' << std::flush;
+    }
+}
+
+
+
+void Chip_8::waitForKey(uint8_t& reg) {
+    waitingForKey = true;
+    keyRegister = &reg;
+}
+
+void Chip_8::checkKeyWaiting() {
+    if (!waitingForKey) return;
+    for (int i = 0; i < 16; ++i) {
+        if (keyboardState[i]) {
+            *keyRegister = i;
+            waitingForKey = false;
+            keyRegister = nullptr;
+            break;
+        }
     }
 }

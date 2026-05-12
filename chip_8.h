@@ -26,13 +26,14 @@ struct Chip_8{
         std::array<bool, SCREEN_SIZE> screen;
         bool isRunning;
 
-        
+        bool waitingForKey = false;
+        uint8_t* keyRegister = nullptr;
 
         void validateMemoryAddress(size_t pos) const;
         void validateRegisterIndex(size_t pos) const;
         void validateStackIndex(size_t pos) const;
         void validateScreenPosition(size_t row, size_t col) const;
-        void Chip_8::validateRom(std::ifstream& file);
+        void validateRom(std::ifstream& file);
 
         // Operations
         void fetch();
@@ -82,14 +83,27 @@ struct Chip_8{
         void mainLoop(ifstream& infile);
 
         void drawSprite(uint8_t Vx, uint8_t Vy, uint8_t N);
-        void Chip_8::updateTimers();
-        void Chip_8::updateSound(); 
+        void drawScreen();
+        void updateTimers();
+        void updateSound(); 
+        void storeBCD(uint8_t value);
 
         uint16_t indexRegister;
         uint8_t delayTimer;
         uint8_t soundTimer;          
         uint16_t currentOpcode; 
 
-        bool isKeyPressed(uint8_t key) const;
         void waitForKey(uint8_t& reg);
+        void checkKeyWaiting(); 
+
+        void setKeyboardState(const std::array<bool, 16>& keys) { 
+            keyboardState = keys; 
+        }
+    
+        bool isKeyPressed(uint8_t key) const { 
+            if (key >= 16) return false;
+            return keyboardState[key]; 
+        }
+
+        std::array<bool, 16> keyboardState; 
 };
