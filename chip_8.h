@@ -1,8 +1,10 @@
+#pragma once
 #include<stdio.h>
 #include<cstdint>
 #include<array>
 #include<iomanip>
 #include<fstream>
+#include<SDL2/SDL.h> 
 using namespace std;
 
 constexpr uint16_t INIT_RESERVED = 0x200;    // The minimum address available (Most of the time, it is 0x200,
@@ -17,17 +19,23 @@ constexpr size_t SCREEN_SIZE = SCREEN_WIDTH * SCREEN_HEIGHT;
 struct Chip_8{
     
     private:
+
+        // Core
         uint8_t memory[MEMORY_SIZE];      
         uint8_t registers[REGISTERS_NUMBER];               
         uint16_t stack[STACK_SIZE];
-
         uint16_t programCounter;
         uint8_t stackPointer;
         std::array<bool, SCREEN_SIZE> screen;
         bool isRunning;
 
+        // Keyboard
         bool waitingForKey = false;
         uint8_t* keyRegister = nullptr;
+
+        // Audio
+        SDL_AudioDeviceID audioDevice;
+        bool audioInitialized = false;
 
         void validateMemoryAddress(size_t pos) const;
         void validateRegisterIndex(size_t pos) const;
@@ -71,6 +79,7 @@ struct Chip_8{
         uint16_t getProgramCounter() const;
         uint8_t getStackPointer() const;
         bool getIsRunning() const;
+        uint8_t getSoundTimer() const;
 
 
         // Setters
@@ -79,13 +88,9 @@ struct Chip_8{
         void setStackCell(size_t pos, uint16_t value);
         void setScreenCell(size_t row, size_t col, bool value);
 
-        void run(string url);
-        void mainLoop(ifstream& infile);
-
         void drawSprite(uint8_t Vx, uint8_t Vy, uint8_t N);
         void drawScreen();
         void updateTimers();
-        void updateSound(); 
         void storeBCD(uint8_t value);
 
         uint16_t indexRegister;
@@ -105,5 +110,5 @@ struct Chip_8{
             return keyboardState[key]; 
         }
 
-        std::array<bool, 16> keyboardState; 
+        std::array<bool, 16> keyboardState{}; 
 };

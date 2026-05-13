@@ -3,12 +3,12 @@
 #include <chrono>
 #include <thread>
 #include "chip_8.h"
+#include "audio.h"
 
-constexpr int SCALE = 10;          // 64x32 → 640x320
+constexpr int SCALE = 10;
 constexpr int WIN_W = 64 * SCALE;
 constexpr int WIN_H = 32 * SCALE;
 
-// Mapping from physical keys to Chip-8 keys (0-15)
 const std::array<SDL_Keycode, 16> keyMap = {{
     SDLK_1, SDLK_2, SDLK_3, SDLK_4,
     SDLK_q, SDLK_w, SDLK_e, SDLK_r,
@@ -22,7 +22,6 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
         return 1;
@@ -45,7 +44,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Create emulator and load ROM
+    // Audio init
+    AudioManager audioManager;
+    if (!audioManager.init()) {
+        std::cerr << "Warning: Audio initialization failed, continuing without sound." << std::endl;
+    }
+
     Chip_8 chip8;
     try {
         chip8.loadROM(argv[1]);
@@ -57,19 +61,18 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Keyboard state
     std::array<bool, 16> keys = {false};
     bool running = true;
     SDL_Event event;
 
-    // Time control
     using clock = std::chrono::steady_clock;
     auto nextFrame = clock::now();
-    const auto frameDuration = std::chrono::milliseconds(16); // ~60 FPS
+    const auto frameDuration = std::chrono::milliseconds(16);
 
-    // Main loop
+    // Sound control (do not repeat while timer is ON)
+    bool wasBeeping = false;
+
     while (running) {
-        // Update keyborrd from SDL
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) running = false;
             if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) running = false;
@@ -83,9 +86,8 @@ int main(int argc, char* argv[]) {
             }
         }
         chip8.setKeyboardState(keys);
-        chip8.checkKeyWaiting();  // For Fx0A opcode
+        chip8.checkKeyWaiting();
 
-        // Execute ~10 opcodes per frame
         for (int i = 0; i < 12; ++i) {
             if (!running) break;
             uint16_t opcode = chip8.fetchOpcode();
@@ -93,22 +95,29 @@ int main(int argc, char* argv[]) {
         }
 
         chip8.updateTimers();
-        chip8.updateSound();  
+        // Sound management
+        if (chip8.getSoundTimer() > 0) {
+            if (!wasBeeping) {
+                audioManager.playBeep(50);   // 50 ms sound
+                wasBeeping = true;
+            }
+        } else {
+            wasBeeping = false;
+        }
 
-        // Render Chip-8 screen
+        // Render
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
-        for (int y = 0; y < 32; ++y) {
-            for (int x = 0; x < 64; ++x) {
-                if (chip8.getScreenCell(y, x)) {  // (row, col)
+        for (int y = 0; y < SCREEN_HEIGHT; ++y) {
+            for (int x = 0; x < SCREEN_WIDTH; ++x) {
+                if (chip8.getScreenCell(y, x)) {
                     SDL_Rect rect = { x * SCALE, y * SCALE, SCALE, SCALE };
                     SDL_RenderFillRect(renderer, &rect);
                 }
             }
         }
-
         SDL_RenderPresent(renderer);
 
         std::this_thread::sleep_until(nextFrame);
